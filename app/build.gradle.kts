@@ -7,12 +7,14 @@ android {
     namespace = "com.nibash.prototype"
     compileSdk = 34
 
+    val customVersionName: String? = System.getenv("APP_VERSION_NAME") ?: (project.findProperty("versionName") as? String)
+
     defaultConfig {
         applicationId = "com.nibash.prototype"
         minSdk = 26
         targetSdk = 34
         versionCode = 1
-        versionName = "1.0 prototype"
+        versionName = customVersionName ?: "1.0 prototype"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {

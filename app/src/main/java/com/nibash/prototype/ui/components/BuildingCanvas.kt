@@ -33,7 +33,6 @@ fun BuildingCanvas(
                 return@Canvas
             }
 
-            val scale = 1.0f
             val centerX = size.width / 2f
             val centerY = size.height - 80f // near the bottom
 
@@ -65,8 +64,7 @@ fun BuildingCanvas(
                         zBottom = zBottom,
                         zTop = zTop,
                         width = widthX,
-                        length = lengthY,
-                        floorIndex = f
+                        length = lengthY
                     )
                 } else {
                     // Draw regular solid floor
@@ -77,8 +75,6 @@ fun BuildingCanvas(
                         zTop = zTop,
                         width = widthX,
                         length = lengthY,
-                        floorIndex = f,
-                        isSingleFlat = isSingleFlat == true,
                         roomsCount = if (isSingleFlat == true) 1 else roomsPerFloor
                     )
                 }
@@ -89,9 +85,7 @@ fun BuildingCanvas(
                     centerY = centerY,
                     zBottom = zBottom,
                     zTop = zTop,
-                    width = widthX,
-                    floorIndex = f,
-                    type = addition?.type ?: "Regular"
+                    width = widthX
                 )
             }
 
@@ -155,8 +149,6 @@ private fun DrawScope.drawSolidFloor(
     zTop: Float,
     width: Float,
     length: Float,
-    floorIndex: Int,
-    isSingleFlat: Boolean,
     roomsCount: Int
 ) {
     // 3D corners
@@ -274,8 +266,7 @@ private fun DrawScope.drawParkingFloor(
     zBottom: Float,
     zTop: Float,
     width: Float,
-    length: Float,
-    floorIndex: Int
+    length: Float
 ) {
     // Parking has concrete columns at corners instead of walls, showing empty space.
     val columnColor = Color(0xFF4A5568)
@@ -300,8 +291,6 @@ private fun DrawScope.drawParkingFloor(
 
         // Draw pillar cylinder/box
         val p1 = isoProject(cx - pillarSize/2, cy - pillarSize/2, zBottom, centerX, centerY)
-        val p2 = isoProject(cx + pillarSize/2, cy + pillarSize/2, zBottom, centerX, centerY)
-        val p3 = isoProject(cx + pillarSize/2, cy + pillarSize/2, zTop, centerX, centerY)
         val p4 = isoProject(cx - pillarSize/2, cy - pillarSize/2, zTop, centerX, centerY)
 
         // Draw basic column lines for 3D effect
@@ -384,9 +373,7 @@ private fun DrawScope.drawFloorTag(
     centerY: Float,
     zBottom: Float,
     zTop: Float,
-    width: Float,
-    floorIndex: Int,
-    type: String
+    width: Float
 ) {
     // Draws a line from the floor edge outwards to the left, and a marker dot.
     // The leftmost corner of the floor is (width, 0, zMid)

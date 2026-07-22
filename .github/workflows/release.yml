@@ -1,0 +1,65 @@
+name: Build and Release Android APK
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  build-and-release:
+    name: Build & Release
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout Source Code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'zulu'
+          java-version: '21'
+
+      - name: Set up Node.js 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v3
+
+      - name: Generate Version Name
+        id: version_name
+        run: |
+          VERSION=$(date +'%Y.%m.%d.%H.%M')
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
+          echo "Generated Version: $VERSION"
+
+      - name: Build Release APK
+        env:
+          APP_VERSION_NAME: ${{ env.VERSION }}
+        run: |
+          ./gradlew assembleRelease
+
+      - name: Prepare APK for Release
+        run: |
+          mkdir -p release-artifacts
+          cp app/build/outputs/apk/release/app-release-unsigned.apk release-artifacts/NibashOwner-Release-${{ env.VERSION }}.apk
+
+      - name: Create GitHub Release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "${{ env.VERSION }}" \
+            --title "Release ${{ env.VERSION }}" \
+            --notes "Automated release of version ${{ env.VERSION }}." \
+            --target "${{ github.sha }}" \
+            release-artifacts/NibashOwner-Release-${{ env.VERSION }}.apk || echo "Warning: Failed to create GitHub Release. This is normal if running from a fork or pull request without write access."
