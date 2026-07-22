@@ -39,6 +39,8 @@ fun DetailScreen(
     var searchQuery by remember { mutableStateOf("") }
     var showAddTenantDialog by remember { mutableStateOf(false) }
     var showLogPaymentDialog by remember { mutableStateOf(false) }
+    var selectedRoomForDetails by remember { mutableStateOf<String?>(null) }
+    var preselectedRoomToAddTenant by remember { mutableStateOf<String?>(null) }
 
     // Navigation interceptor
     BackHandler {
@@ -182,7 +184,7 @@ fun DetailScreen(
                                 modifier = Modifier
                                     .weight(1f)
                                     .clickable {
-                                        // Just quick trigger dialog or overlay to show style details
+                                        selectedRoomForDetails = roomNum
                                     },
                                 colors = CardDefaults.cardColors(
                                     containerColor = if (isOccupied) Color(0xFF065F46) else Color(0xFF312E81)
@@ -300,17 +302,121 @@ fun DetailScreen(
         }
     }
 
+    // --- DIALOG: ROOM DETAILS (INCOMPLETE TASK) ---
+    if (selectedRoomForDetails != null) {
+        val roomNum = selectedRoomForDetails!!
+        val tenant = building.tenants.find { it.roomId == roomNum }
+        val isOccupied = tenant != null
+        val rentAmount = building.getRentForRoom(roomNum)
+        val style = building.getStyleForRoom(roomNum)
+
+        AlertDialog(
+            onDismissRequest = { selectedRoomForDetails = null },
+            title = { Text("Room $roomNum Details", color = Color.White, fontWeight = FontWeight.Bold) },
+            containerColor = Color(0xFF1E1E2E),
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    // Suffix Layout style info
+                    Text("Flat Layout:", color = Color.Gray, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    Card(
+                        colors = CardDefaults.cardColors(containerColor = Color(0xFF2C2C3E)),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(modifier = Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Text("• Bedrooms: ${style.bedrooms}", color = Color.LightGray, fontSize = 12.sp)
+                            Text("• Bathrooms: ${style.bathrooms} (Attached: ${style.attachedBaths}, Open: ${style.openBaths})", color = Color.LightGray, fontSize = 12.sp)
+                            Text("• Balconies: ${style.balconies}", color = Color.LightGray, fontSize = 12.sp)
+                            Text("• Kitchens: ${style.kitchens}", color = Color.LightGray, fontSize = 12.sp)
+                            Text("• Standard Rent: ${rentAmount.toInt()} BDT", color = Color(0xFF34D399), fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+
+                    // Tenant Info
+                    Text("Occupancy Status:", color = Color.Gray, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    if (isOccupied) {
+                        val t = tenant!!
+                        Card(
+                            colors = CardDefaults.cardColors(containerColor = Color(0xFF065F46)),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Column(modifier = Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                Text("Tenant: ${t.name}", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                                Text("Occupation: ${t.occupation}", color = Color.LightGray, fontSize = 12.sp)
+                                Text("Phone: ${t.phone}", color = Color.White, fontSize = 12.sp)
+                                Text("Family Members: ${t.familyMembers}", color = Color.LightGray, fontSize = 12.sp)
+                            }
+                        }
+                    } else {
+                        Card(
+                            colors = CardDefaults.cardColors(containerColor = Color(0xFF312E81)),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text(
+                                "This unit is currently Vacant.",
+                                color = Color.LightGray,
+                                fontSize = 13.sp,
+                                modifier = Modifier.padding(12.dp)
+                            )
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                if (isOccupied) {
+                    Button(
+                        onClick = {
+                            // Evict/Remove tenant
+                            val newTenants = building.tenants.filter { it.id != tenant!!.id }
+                            val newPayments = building.payments.filter { it.tenantId != tenant!!.id }
+                            onUpdateBuilding(building.copy(tenants = newTenants, payments = newPayments))
+                            selectedRoomForDetails = null
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFEF4444))
+                    ) {
+                        Icon(Icons.Default.PersonRemove, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("Remove Tenant")
+                    }
+                } else {
+                    Button(
+                        onClick = {
+                            preselectedRoomToAddTenant = roomNum
+                            selectedRoomForDetails = null
+                            showAddTenantDialog = true
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF6366F1))
+                    ) {
+                        Icon(Icons.Default.PersonAdd, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("Add Tenant")
+                    }
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { selectedRoomForDetails = null }) {
+                    Text("Close", color = Color.Gray)
+                }
+            }
+        )
+    }
+
     // --- DIALOG: ADD TENANT (2.1) ---
     if (showAddTenantDialog) {
+        val vacantRooms = remember(building.tenants, roomNumbers) {
+            roomNumbers.filter { room -> building.tenants.none { it.roomId == room } }
+        }
+
         var name by remember { mutableStateOf("") }
         var occupation by remember { mutableStateOf("") }
         var phone by remember { mutableStateOf("") }
         var familyCountStr by remember { mutableStateOf("3") }
-        var selectedRoom by remember { mutableStateOf(roomNumbers.firstOrNull() ?: "") }
-        var isDropdownExpanded by remember { mutableStateOf(false) }
+        var selectedRoom by remember { mutableStateOf(preselectedRoomToAddTenant ?: vacantRooms.firstOrNull() ?: "") }
 
         AlertDialog(
-            onDismissRequest = { showAddTenantDialog = false },
+            onDismissRequest = {
+                showAddTenantDialog = false
+                preselectedRoomToAddTenant = null
+            },
             title = { Text("Add Tenant to Flat", color = Color.White) },
             containerColor = Color(0xFF1E1E2E),
             text = {
@@ -347,29 +453,41 @@ fun DetailScreen(
 
                     // Room Selection dropdown alternative
                     Text("Select Flat/Room:", color = Color.Gray, fontSize = 12.sp)
-                    LazyRow(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        items(roomNumbers) { room ->
-                            val isSelected = selectedRoom == room
-                            Box(
-                                modifier = Modifier
-                                    .background(
-                                        if (isSelected) Color(0xFF6366F1) else Color(0xFF2C2C3E),
-                                        RoundedCornerShape(4.dp)
-                                    )
-                                    .clickable { selectedRoom = room }
-                                    .padding(horizontal = 12.dp, vertical = 8.dp)
-                            ) {
-                                Text(text = room, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                    if (vacantRooms.isEmpty()) {
+                        Text(
+                            text = "No vacant rooms available in this building!",
+                            color = Color(0xFFEF4444),
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 13.sp,
+                            modifier = Modifier.padding(vertical = 8.dp)
+                        )
+                    } else {
+                        LazyRow(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            items(vacantRooms) { room ->
+                                val isSelected = selectedRoom == room
+                                Box(
+                                    modifier = Modifier
+                                        .background(
+                                            if (isSelected) Color(0xFF6366F1) else Color(0xFF2C2C3E),
+                                            RoundedCornerShape(4.dp)
+                                        )
+                                        .clickable { selectedRoom = room }
+                                        .padding(horizontal = 12.dp, vertical = 8.dp)
+                                ) {
+                                    Text(text = room, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                                }
                             }
                         }
                     }
                 }
             },
             confirmButton = {
+                val isFamilyCountValid = familyCountStr.toIntOrNull() != null && (familyCountStr.toIntOrNull() ?: 0) >= 1
                 Button(
+                    enabled = vacantRooms.isNotEmpty() && name.isNotBlank() && selectedRoom.isNotBlank() && isFamilyCountValid,
                     onClick = {
                         if (name.isNotBlank() && selectedRoom.isNotBlank()) {
                             val newTenant = Tenant(
@@ -382,15 +500,22 @@ fun DetailScreen(
                             val newTenants = building.tenants + newTenant
                             onUpdateBuilding(building.copy(tenants = newTenants))
                             showAddTenantDialog = false
+                            preselectedRoomToAddTenant = null
                         }
                     },
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF6366F1))
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFF6366F1),
+                        disabledContainerColor = Color(0xFF2D2D44)
+                    )
                 ) {
                     Text("Add Tenant")
                 }
             },
             dismissButton = {
-                TextButton(onClick = { showAddTenantDialog = false }) {
+                TextButton(onClick = {
+                    showAddTenantDialog = false
+                    preselectedRoomToAddTenant = null
+                }) {
                     Text("Cancel", color = Color.Gray)
                 }
             }
@@ -481,28 +606,38 @@ fun DetailScreen(
             },
             confirmButton = {
                 if (building.tenants.isNotEmpty()) {
+                    val paidVal = amountPaidStr.toDoubleOrNull()
+                    val advVal = advancePaidStr.toDoubleOrNull()
+                    val isPaymentInputValid = paidVal != null && paidVal >= 0.0 && advVal != null && advVal >= 0.0
+
                     Button(
+                        enabled = isPaymentInputValid,
                         onClick = {
-                            val paidVal = amountPaidStr.toDoubleOrNull() ?: 0.0
-                            val advVal = advancePaidStr.toDoubleOrNull() ?: 0.0
-                            val dueVal = (standardRentAmount - paidVal).coerceAtLeast(0.0)
+                            if (isPaymentInputValid) {
+                                val pVal = paidVal!!
+                                val aVal = advVal!!
+                                val dueVal = (standardRentAmount - pVal).coerceAtLeast(0.0)
 
-                            val newPayment = Payment(
-                                tenantId = selectedTenantId,
-                                roomId = correspondingRoom,
-                                month = month,
-                                amountPaid = paidVal,
-                                amountDue = dueVal,
-                                advancePaid = advVal,
-                                isPaid = isPaid,
-                                paidDate = if (isPaid) "2024-07-10" else ""
-                            )
+                                val newPayment = Payment(
+                                    tenantId = selectedTenantId,
+                                    roomId = correspondingRoom,
+                                    month = month,
+                                    amountPaid = pVal,
+                                    amountDue = dueVal,
+                                    advancePaid = aVal,
+                                    isPaid = isPaid,
+                                    paidDate = if (isPaid) "2024-07-10" else ""
+                                )
 
-                            val newPayments = building.payments + newPayment
-                            onUpdateBuilding(building.copy(payments = newPayments))
-                            showLogPaymentDialog = false
+                                val newPayments = building.payments + newPayment
+                                onUpdateBuilding(building.copy(payments = newPayments))
+                                showLogPaymentDialog = false
+                            }
                         },
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF10B981))
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color(0xFF10B981),
+                            disabledContainerColor = Color(0xFF2D2D44)
+                        )
                     ) {
                         Text("Save Record")
                     }
