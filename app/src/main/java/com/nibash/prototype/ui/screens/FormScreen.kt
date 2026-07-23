@@ -6,6 +6,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
@@ -51,20 +52,35 @@ fun FormScreen(
 
     var numberingSystem by remember { mutableStateOf("Numeric (101, 102)") } // or "Alphabetic (A01, A02)"
 
-    // Flat styles for each suffix (default style customized)
-    var style01Bedrooms by remember { mutableStateOf("3") }
-    var style01Bathrooms by remember { mutableStateOf("2") }
-    var style01Attached by remember { mutableStateOf("1") }
-    var style01Open by remember { mutableStateOf("1") }
-    var style01Balcony by remember { mutableStateOf("2") }
-    var style01Kitchen by remember { mutableStateOf("1") }
+    // Dynamic flat styles based on roomsPerFloor
+    var dynamicFlatStyles by remember(roomsPerFloor) {
+        val count = roomsPerFloor.coerceIn(1, 20)
+        mutableStateOf(
+            (1..count).map { r ->
+                val suffix = String.format("%02d", r)
+                FlatStyle(
+                    roomSuffix = suffix,
+                    bedrooms = if (systemType == "Individual Rooms") 1 else 2,
+                    bathrooms = 1,
+                    attachedBaths = 0,
+                    openBaths = 1,
+                    balconies = 1,
+                    kitchens = if (systemType == "Individual Rooms") 0 else 1
+                )
+            }
+        )
+    }
 
-    var style02Bedrooms by remember { mutableStateOf("2") }
-    var style02Bathrooms by remember { mutableStateOf("1") }
-    var style02Attached by remember { mutableStateOf("0") }
-    var style02Open by remember { mutableStateOf("1") }
-    var style02Balcony by remember { mutableStateOf("1") }
-    var style02Kitchen by remember { mutableStateOf("1") }
+    // Dynamic rent inputs based on roomsPerFloor
+    var dynamicCustomRentsMap by remember(roomsPerFloor) {
+        val count = roomsPerFloor.coerceIn(1, 20)
+        mutableStateOf(
+            (1..count).associate { r ->
+                val suffix = String.format("%02d", r)
+                suffix to "12000"
+            }
+        )
+    }
 
     // Rules
     val defaultRules = listOf(
@@ -79,11 +95,9 @@ fun FormScreen(
     )
     var selectedRules by remember { mutableStateOf(setOf<String>()) }
 
-    // Rent
+    // Rent Type
     var rentType by remember { mutableStateOf("Universal") } // "Universal" or "Set of Flats"
     var universalRentStr by remember { mutableStateOf("15000") }
-    var rent01Str by remember { mutableStateOf("18000") }
-    var rent02Str by remember { mutableStateOf("12000") }
 
     // Map state variables into floor additions list dynamically
     val floorAdditions = remember(floorAdditionsMap) {
@@ -102,7 +116,7 @@ fun FormScreen(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color(0xFF0F0F1A))
+            .background(Color(0xFF0B0B14))
     ) {
         // --- TOP HALF: LIVE 3D ANIMATION VIEW ---
         Box(
@@ -120,16 +134,17 @@ fun FormScreen(
             // Step Label Overlay
             Card(
                 colors = CardDefaults.cardColors(containerColor = Color(0xCC111827)),
-                shape = RoundedCornerShape(8.dp),
+                shape = RoundedCornerShape(12.dp),
                 modifier = Modifier
-                    .padding(16.dp)
+                    .padding(20.dp)
                     .align(Alignment.TopStart)
+                    .border(1.dp, Color(0x22FFFFFF), RoundedCornerShape(12.dp))
             ) {
                 Text(
                     text = "Live 3D Preview (Step $currentStep/9)",
-                    color = Color(0xFF38BDF8),
+                    color = Color(0xFF818CF8),
                     style = MaterialTheme.typography.bodySmall,
-                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
                     fontWeight = FontWeight.Bold
                 )
             }
@@ -138,9 +153,9 @@ fun FormScreen(
             IconButton(
                 onClick = onBackToHome,
                 modifier = Modifier
-                    .padding(12.dp)
+                    .padding(16.dp)
                     .align(Alignment.TopEnd)
-                    .background(Color(0x55000000), RoundedCornerShape(20.dp))
+                    .background(Color(0x55000000), CircleShape)
             ) {
                 Icon(
                     imageVector = Icons.Default.Home,
@@ -150,19 +165,18 @@ fun FormScreen(
             }
         }
 
-        // --- DIVIDER LINE WITH BACKWARDS AND FORWARDS CONTROLS ---
+        // --- BOTTOM HALF: INPUT WIZARD ---
         Card(
-            shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
-            colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1E2E)),
+            shape = RoundedCornerShape(topStart = 32.dp, topEnd = 32.dp),
+            colors = CardDefaults.cardColors(containerColor = Color(0xFF141424)),
             modifier = Modifier
                 .fillMaxWidth()
-                .weight(1.2f)
+                .weight(1.3f)
+                .border(1.dp, Color(0x15FFFFFF), RoundedCornerShape(topStart = 32.dp, topEnd = 32.dp))
         ) {
             val isStepValid = remember(
                 currentStep, buildingName, floorsCountStr, systemType, roomsPerFloorStr,
-                style01Bedrooms, style01Bathrooms, style01Attached, style01Open, style01Balcony, style01Kitchen,
-                style02Bedrooms, style02Bathrooms, style02Attached, style02Open, style02Balcony, style02Kitchen,
-                rentType, universalRentStr, rent01Str, rent02Str
+                dynamicFlatStyles, rentType, universalRentStr, dynamicCustomRentsMap
             ) {
                 when (currentStep) {
                     1 -> buildingName.isNotBlank()
@@ -178,26 +192,12 @@ fun FormScreen(
                     5 -> true
                     6 -> numberingSystem.isNotBlank()
                     7 -> {
-                        val s1Bed = style01Bedrooms.toIntOrNull()
-                        val s1Bath = style01Bathrooms.toIntOrNull()
-                        val s1Att = style01Attached.toIntOrNull()
-                        val s1Opn = style01Open.toIntOrNull()
-                        val s1Bal = style01Balcony.toIntOrNull()
-                        val s1Kit = style01Kitchen.toIntOrNull()
-
-                        val s2Bed = style02Bedrooms.toIntOrNull()
-                        val s2Bath = style02Bathrooms.toIntOrNull()
-                        val s2Att = style02Attached.toIntOrNull()
-                        val s2Opn = style02Open.toIntOrNull()
-                        val s2Bal = style02Balcony.toIntOrNull()
-                        val s2Kit = style02Kitchen.toIntOrNull()
-
-                        s1Bed != null && s1Bed >= 0 && s1Bath != null && s1Bath >= 0 &&
-                        s1Att != null && s1Att >= 0 && s1Opn != null && s1Opn >= 0 &&
-                        s1Bal != null && s1Bal >= 0 && s1Kit != null && s1Kit >= 0 &&
-                        s2Bed != null && s2Bed >= 0 && s2Bath != null && s2Bath >= 0 &&
-                        s2Att != null && s2Att >= 0 && s2Opn != null && s2Opn >= 0 &&
-                        s2Bal != null && s2Bal >= 0 && s2Kit != null && s2Kit >= 0
+                        // Check if all fields in all styles are valid positive integers
+                        dynamicFlatStyles.all { style ->
+                            style.bedrooms >= 0 && style.bathrooms >= 0 &&
+                            style.attachedBaths >= 0 && style.openBaths >= 0 &&
+                            style.balconies >= 0 && style.kitchens >= 0
+                        }
                     }
                     8 -> true
                     9 -> {
@@ -205,9 +205,11 @@ fun FormScreen(
                             val rent = universalRentStr.toDoubleOrNull()
                             rent != null && rent >= 0.0
                         } else {
-                            val r1 = rent01Str.toDoubleOrNull()
-                            val r2 = rent02Str.toDoubleOrNull()
-                            r1 != null && r1 >= 0.0 && r2 != null && r2 >= 0.0
+                            // Check if all custom rents in map are valid non-negative numbers
+                            dynamicCustomRentsMap.values.all { rStr ->
+                                val r = rStr.toDoubleOrNull()
+                                r != null && r >= 0.0
+                            }
                         }
                     }
                     else -> true
@@ -217,20 +219,20 @@ fun FormScreen(
             Column(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(20.dp)
+                    .padding(24.dp)
             ) {
                 // Forward / Backward control bar at the top part of the bottom form
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(bottom = 12.dp),
+                        .padding(bottom = 16.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     FilledIconButton(
                         onClick = { if (currentStep > 1) currentStep-- else onBackToHome() },
                         colors = IconButtonDefaults.filledIconButtonColors(
-                            containerColor = Color(0xFF2D2D44)
+                            containerColor = Color(0xFF222238)
                         )
                     ) {
                         Icon(
@@ -243,20 +245,21 @@ fun FormScreen(
                     // Question/Step Title text
                     Text(
                         text = when (currentStep) {
-                            1 -> "Building Identity"
-                            2 -> "Building Floors"
-                            3 -> "Layout System"
-                            4 -> "Rooms Per Floor"
-                            5 -> "Floor Additions"
-                            6 -> "Numbering Logic"
+                            1 -> "Property Identity"
+                            2 -> "Property Floors"
+                            3 -> "Layout Architecture"
+                            4 -> "Units Per Floor"
+                            5 -> "Exception Additions"
+                            6 -> "Numbering System"
                             7 -> "Flat Styles & Layout"
-                            8 -> "Building Rules"
-                            9 -> "Rent Rates"
-                            else -> "Nibash Form"
+                            8 -> "House Rules"
+                            9 -> "Rent Pricing Plan"
+                            else -> "Property Form"
                         },
                         style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.White
+                        fontWeight = FontWeight.Black,
+                        color = Color.White,
+                        letterSpacing = 0.5.sp
                     )
 
                     if (currentStep < 9) {
@@ -265,7 +268,7 @@ fun FormScreen(
                             onClick = { currentStep++ },
                             colors = IconButtonDefaults.filledIconButtonColors(
                                 containerColor = Color(0xFF6366F1),
-                                disabledContainerColor = Color(0xFF2D2D44)
+                                disabledContainerColor = Color(0xFF222238)
                             )
                         ) {
                             Icon(
@@ -279,56 +282,33 @@ fun FormScreen(
                         FilledIconButton(
                             enabled = isStepValid,
                             onClick = {
-                                // Assemble the building
-                                val styles = listOf(
-                                    FlatStyle(
-                                        roomSuffix = "01",
-                                        bedrooms = style01Bedrooms.toIntOrNull() ?: 3,
-                                        bathrooms = style01Bathrooms.toIntOrNull() ?: 2,
-                                        attachedBaths = style01Attached.toIntOrNull() ?: 1,
-                                        openBaths = style01Open.toIntOrNull() ?: 1,
-                                        balconies = style01Balcony.toIntOrNull() ?: 2,
-                                        kitchens = style01Kitchen.toIntOrNull() ?: 1
-                                    ),
-                                    FlatStyle(
-                                        roomSuffix = "02",
-                                        bedrooms = style02Bedrooms.toIntOrNull() ?: 2,
-                                        bathrooms = style02Bathrooms.toIntOrNull() ?: 1,
-                                        attachedBaths = style02Attached.toIntOrNull() ?: 0,
-                                        openBaths = style02Open.toIntOrNull() ?: 1,
-                                        balconies = style02Balcony.toIntOrNull() ?: 1,
-                                        kitchens = style02Kitchen.toIntOrNull() ?: 1
-                                    )
-                                )
-
-                                val customRents = mapOf(
-                                    "01" to (rent01Str.toDoubleOrNull() ?: 15000.0),
-                                    "02" to (rent02Str.toDoubleOrNull() ?: 12000.0)
-                                )
+                                val customRentsParsed = dynamicCustomRentsMap.mapValues {
+                                    it.value.toDoubleOrNull() ?: 12000.0
+                                }
 
                                 val newBuilding = Building(
-                                    name = buildingName.ifBlank { "New Building Prototype" },
+                                    name = buildingName.ifBlank { "New Premium Nibash" },
                                     floorsCount = floorsCount,
                                     systemType = systemType,
                                     roomsPerFloor = roomsPerFloor,
                                     floorAdditions = floorAdditions,
                                     numberingSystem = numberingSystem,
-                                    flatStyles = styles,
+                                    flatStyles = dynamicFlatStyles,
                                     rules = selectedRules.toList(),
                                     rentType = rentType,
-                                    universalRent = universalRentStr.toDoubleOrNull() ?: 10000.0,
-                                    customRents = customRents
+                                    universalRent = universalRentStr.toDoubleOrNull() ?: 15000.0,
+                                    customRents = customRentsParsed
                                 )
                                 onBuildingCreated(newBuilding)
                             },
                             colors = IconButtonDefaults.filledIconButtonColors(
                                 containerColor = Color(0xFF10B981),
-                                disabledContainerColor = Color(0xFF2D2D44)
+                                disabledContainerColor = Color(0xFF222238)
                             )
                         ) {
                             Icon(
                                 imageVector = Icons.Default.Check,
-                                contentDescription = "Complete building",
+                                contentDescription = "Create Property",
                                 tint = Color.White
                             )
                         }
@@ -340,9 +320,10 @@ fun FormScreen(
                     progress = { currentStep.toFloat() / 9f },
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(bottom = 16.dp),
+                        .padding(bottom = 20.dp)
+                        .clip(CircleShape),
                     color = Color(0xFF6366F1),
-                    trackColor = Color(0xFF2D2D44)
+                    trackColor = Color(0xFF222238)
                 )
 
                 // Scrollable container for the interactive form inputs
@@ -382,50 +363,22 @@ fun FormScreen(
                                 numberingSystem = numberingSystem,
                                 onNumberingChange = { numberingSystem = it }
                             )
-                            7 -> StepFlatStyles(
-                                suffix01Bedrooms = style01Bedrooms,
-                                suffix01Bathrooms = style01Bathrooms,
-                                suffix01Attached = style01Attached,
-                                suffix01Open = style01Open,
-                                suffix01Balcony = style01Balcony,
-                                suffix01Kitchen = style01Kitchen,
-                                onStyle01Change = { bed, bath, att, opn, bal, kit ->
-                                    style01Bedrooms = bed
-                                    style01Bathrooms = bath
-                                    style01Attached = att
-                                    style01Open = opn
-                                    style01Balcony = bal
-                                    style01Kitchen = kit
-                                },
-                                suffix02Bedrooms = style02Bedrooms,
-                                suffix02Bathrooms = style02Bathrooms,
-                                suffix02Attached = style02Attached,
-                                suffix02Open = style02Open,
-                                suffix02Balcony = style02Balcony,
-                                suffix02Kitchen = style02Kitchen,
-                                onStyle02Change = { bed, bath, att, opn, bal, kit ->
-                                    style02Bedrooms = bed
-                                    style02Bathrooms = bath
-                                    style02Attached = att
-                                    style02Open = opn
-                                    style02Balcony = bal
-                                    style02Kitchen = kit
-                                }
+                            7 -> StepFlatStylesDynamic(
+                                flatStyles = dynamicFlatStyles,
+                                onStylesChange = { dynamicFlatStyles = it }
                             )
                             8 -> StepRulesList(
                                 availableRules = defaultRules,
                                 selectedRules = selectedRules,
                                 onRulesChange = { selectedRules = it }
                             )
-                            9 -> StepRentConfig(
+                            9 -> StepRentConfigDynamic(
                                 rentType = rentType,
                                 onRentTypeChange = { rentType = it },
                                 universalRentStr = universalRentStr,
                                 onUniversalRentChange = { universalRentStr = it },
-                                rent01Str = rent01Str,
-                                onRent01Change = { rent01Str = it },
-                                rent02Str = rent02Str,
-                                onRent02Change = { rent02Str = it }
+                                customRentsMap = dynamicCustomRentsMap,
+                                onCustomRentsMapChange = { dynamicCustomRentsMap = it }
                             )
                         }
                     }
@@ -440,16 +393,17 @@ fun FormScreen(
 @Composable
 fun StepBuildingName(buildingName: String, onNameChange: (String) -> Unit) {
     Text(
-        text = "What is the name of your building?",
+        text = "What is the name of your property?",
         color = Color.LightGray,
         fontSize = 15.sp,
-        modifier = Modifier.padding(bottom = 12.dp)
+        modifier = Modifier.padding(bottom = 12.dp),
+        fontWeight = FontWeight.Medium
     )
     OutlinedTextField(
         value = buildingName,
         onValueChange = onNameChange,
-        label = { Text("Building Name") },
-        placeholder = { Text("e.g. Nibash Tower, Paradise Villa") },
+        label = { Text("Property Name") },
+        placeholder = { Text("e.g. Nibash Tower, Silver Villa") },
         singleLine = true,
         colors = OutlinedTextFieldDefaults.colors(
             focusedTextColor = Color.White,
@@ -464,10 +418,11 @@ fun StepBuildingName(buildingName: String, onNameChange: (String) -> Unit) {
 @Composable
 fun StepFloorsCount(floorsCountStr: String, onFloorsChange: (String) -> Unit) {
     Text(
-        text = "How many floors are in the building?",
+        text = "How many floors are in this building?",
         color = Color.LightGray,
         fontSize = 15.sp,
-        modifier = Modifier.padding(bottom = 12.dp)
+        modifier = Modifier.padding(bottom = 12.dp),
+        fontWeight = FontWeight.Medium
     )
     OutlinedTextField(
         value = floorsCountStr,
@@ -476,7 +431,7 @@ fun StepFloorsCount(floorsCountStr: String, onFloorsChange: (String) -> Unit) {
                 onFloorsChange(it)
             }
         },
-        label = { Text("Number of floors") },
+        label = { Text("Number of floors (1 - 50)") },
         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
         singleLine = true,
         colors = OutlinedTextFieldDefaults.colors(
@@ -487,6 +442,17 @@ fun StepFloorsCount(floorsCountStr: String, onFloorsChange: (String) -> Unit) {
         ),
         modifier = Modifier.fillMaxWidth()
     )
+
+    val count = floorsCountStr.toIntOrNull()
+    if (count != null && count !in 1..50) {
+        Spacer(modifier = Modifier.height(8.dp))
+        Text(
+            text = "Please enter a logical floor count between 1 and 50.",
+            color = Color(0xFFEF4444),
+            fontSize = 11.sp,
+            fontWeight = FontWeight.SemiBold
+        )
+    }
 }
 
 @Composable
@@ -495,7 +461,8 @@ fun StepSystemType(systemType: String, onSystemTypeChange: (String) -> Unit) {
         text = "Is this building partitioned into complete Flats or Individual Rooms?",
         color = Color.LightGray,
         fontSize = 15.sp,
-        modifier = Modifier.padding(bottom = 12.dp)
+        modifier = Modifier.padding(bottom = 12.dp),
+        fontWeight = FontWeight.Medium
     )
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -508,16 +475,17 @@ fun StepSystemType(systemType: String, onSystemTypeChange: (String) -> Unit) {
                 .border(
                     width = 2.dp,
                     color = if (systemType == "Flats") Color(0xFF6366F1) else Color.Transparent,
-                    shape = RoundedCornerShape(12.dp)
+                    shape = RoundedCornerShape(16.dp)
                 ),
-            colors = CardDefaults.cardColors(containerColor = Color(0xFF2C2C3E))
+            colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1E2F))
         ) {
             Column(
-                modifier = Modifier.padding(16.dp),
+                modifier = Modifier.padding(20.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Text("Flats System", color = Color.White, fontWeight = FontWeight.Bold)
-                Text("Multi-room apartment spaces", color = Color.Gray, fontSize = 11.sp)
+                Text("Flats System", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                Spacer(modifier = Modifier.height(4.dp))
+                Text("Multi-room spaces", color = Color.Gray, fontSize = 11.sp)
             }
         }
 
@@ -528,16 +496,17 @@ fun StepSystemType(systemType: String, onSystemTypeChange: (String) -> Unit) {
                 .border(
                     width = 2.dp,
                     color = if (systemType == "Individual Rooms") Color(0xFF6366F1) else Color.Transparent,
-                    shape = RoundedCornerShape(12.dp)
+                    shape = RoundedCornerShape(16.dp)
                 ),
-            colors = CardDefaults.cardColors(containerColor = Color(0xFF2C2C3E))
+            colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1E2F))
         ) {
             Column(
-                modifier = Modifier.padding(16.dp),
+                modifier = Modifier.padding(20.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Text("Room System", color = Color.White, fontWeight = FontWeight.Bold)
-                Text("Single room hostels/units", color = Color.Gray, fontSize = 11.sp)
+                Text("Room System", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                Spacer(modifier = Modifier.height(4.dp))
+                Text("Hostels / Units", color = Color.Gray, fontSize = 11.sp)
             }
         }
     }
@@ -549,7 +518,8 @@ fun StepRoomsPerFloor(roomsCountStr: String, onRoomsCountChange: (String) -> Uni
         text = "How many units are typically on each floor?",
         color = Color.LightGray,
         fontSize = 15.sp,
-        modifier = Modifier.padding(bottom = 12.dp)
+        modifier = Modifier.padding(bottom = 12.dp),
+        fontWeight = FontWeight.Medium
     )
     OutlinedTextField(
         value = roomsCountStr,
@@ -558,7 +528,7 @@ fun StepRoomsPerFloor(roomsCountStr: String, onRoomsCountChange: (String) -> Uni
                 onRoomsCountChange(it)
             }
         },
-        label = { Text("Units per floor") },
+        label = { Text("Units per floor (1 - 20)") },
         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
         singleLine = true,
         colors = OutlinedTextFieldDefaults.colors(
@@ -569,6 +539,17 @@ fun StepRoomsPerFloor(roomsCountStr: String, onRoomsCountChange: (String) -> Uni
         ),
         modifier = Modifier.fillMaxWidth()
     )
+
+    val count = roomsCountStr.toIntOrNull()
+    if (count != null && count !in 1..20) {
+        Spacer(modifier = Modifier.height(8.dp))
+        Text(
+            text = "Please enter a count between 1 and 20.",
+            color = Color(0xFFEF4444),
+            fontSize = 11.sp,
+            fontWeight = FontWeight.SemiBold
+        )
+    }
 }
 
 @Composable
@@ -584,10 +565,10 @@ fun StepFloorAdditions(
         fontSize = 16.sp
     )
     Text(
-        text = "You can set ground floor for Parking, or designate specific floors as Single Flat penthouses.",
+        text = "Set ground floor for Parking, or designate specific floors as Single Flat penthouses.",
         color = Color.LightGray,
         fontSize = 12.sp,
-        modifier = Modifier.padding(bottom = 12.dp)
+        modifier = Modifier.padding(bottom = 16.dp)
     )
 
     for (f in 0 until floorsCount) {
@@ -596,15 +577,16 @@ fun StepFloorAdditions(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(vertical = 4.dp)
-                .background(Color(0xFF2A2A3D), RoundedCornerShape(8.dp))
-                .padding(8.dp),
+                .background(Color(0xFF1C1C2C), RoundedCornerShape(12.dp))
+                .padding(12.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
                 text = if (f == 0) "Ground Floor (0)" else "Floor $f",
                 color = Color.White,
-                fontWeight = FontWeight.Medium
+                fontWeight = FontWeight.Bold,
+                fontSize = 13.sp
             )
 
             Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -616,14 +598,14 @@ fun StepFloorAdditions(
                         fontSize = 10.sp,
                         fontWeight = FontWeight.Bold,
                         modifier = Modifier
-                            .clip(RoundedCornerShape(4.dp))
-                            .background(if (isSelected) Color(0xFF6366F1) else Color(0xFF1E1E2E))
+                            .clip(RoundedCornerShape(6.dp))
+                            .background(if (isSelected) Color(0xFF6366F1) else Color(0xFF141424))
                             .clickable {
                                 val newMap = floorAdditionsMap.toMutableMap()
                                 newMap[f] = type
                                 onAdditionsChange(newMap)
                             }
-                            .padding(horizontal = 8.dp, vertical = 6.dp)
+                            .padding(horizontal = 10.dp, vertical = 6.dp)
                     )
                 }
             }
@@ -637,7 +619,8 @@ fun StepNumberingSystem(numberingSystem: String, onNumberingChange: (String) -> 
         text = "Select room numbering code structure:",
         color = Color.LightGray,
         fontSize = 15.sp,
-        modifier = Modifier.padding(bottom = 12.dp)
+        modifier = Modifier.padding(bottom = 12.dp),
+        fontWeight = FontWeight.Medium
     )
     listOf("Numeric (101, 102, 103)", "Alphabetic (A01, A02, B01)").forEach { system ->
         val isSelected = numberingSystem.startsWith(system.substring(0, 3))
@@ -646,11 +629,12 @@ fun StepNumberingSystem(numberingSystem: String, onNumberingChange: (String) -> 
                 .fillMaxWidth()
                 .padding(vertical = 6.dp)
                 .background(
-                    if (isSelected) Color(0xFF2C2C4E) else Color(0xFF1F1F2F),
-                    RoundedCornerShape(8.dp)
+                    if (isSelected) Color(0xFF1E1E2F) else Color(0xFF141424),
+                    RoundedCornerShape(12.dp)
                 )
                 .clickable { onNumberingChange(system) }
-                .padding(16.dp),
+                .padding(16.dp)
+                .border(1.dp, if (isSelected) Color(0xFF6366F1) else Color.Transparent, RoundedCornerShape(12.dp)),
             verticalAlignment = Alignment.CenterVertically
         ) {
             RadioButton(
@@ -662,156 +646,157 @@ fun StepNumberingSystem(numberingSystem: String, onNumberingChange: (String) -> 
             Text(
                 text = system,
                 color = Color.White,
-                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                fontSize = 14.sp
             )
         }
     }
 }
 
 @Composable
-fun StepFlatStyles(
-    suffix01Bedrooms: String,
-    suffix01Bathrooms: String,
-    suffix01Attached: String,
-    suffix01Open: String,
-    suffix01Balcony: String,
-    suffix01Kitchen: String,
-    onStyle01Change: (String, String, String, String, String, String) -> Unit,
-    suffix02Bedrooms: String,
-    suffix02Bathrooms: String,
-    suffix02Attached: String,
-    suffix02Open: String,
-    suffix02Balcony: String,
-    suffix02Kitchen: String,
-    onStyle02Change: (String, String, String, String, String, String) -> Unit
+fun StepFlatStylesDynamic(
+    flatStyles: List<FlatStyle>,
+    onStylesChange: (List<FlatStyle>) -> Unit
 ) {
     Text(
-        text = "Customize Rooms & Flats Layout Styles",
+        text = "Customize Suffix Layout Styles",
         color = Color.White,
         fontWeight = FontWeight.Bold,
         fontSize = 16.sp
     )
     Text(
-        text = "Define room layouts based on room suffix sets (e.g. all 101/201/301 rooms):",
+        text = "Define room layouts dynamically based on your rooms per floor suffixes (e.g., all *01, *02 units):",
         color = Color.LightGray,
         fontSize = 12.sp,
-        modifier = Modifier.padding(bottom = 12.dp)
+        modifier = Modifier.padding(bottom = 16.dp)
     )
 
-    // --- SECTION FOR *01 SUFFIX ---
-    Card(
-        colors = CardDefaults.cardColors(containerColor = Color(0xFF2A2A3D)),
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(bottom = 12.dp)
-    ) {
-        Column(modifier = Modifier.padding(12.dp)) {
-            Text("Style for suffix *01 [e.g. 101, 201, 301]", color = Color(0xFFF59E0B), fontWeight = FontWeight.Bold, fontSize = 13.sp)
-            Spacer(modifier = Modifier.height(8.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedTextField(
-                    value = suffix01Bedrooms,
-                    onValueChange = { onStyle01Change(it, suffix01Bathrooms, suffix01Attached, suffix01Open, suffix01Balcony, suffix01Kitchen) },
-                    label = { Text("Beds", fontSize = 10.sp) },
-                    modifier = Modifier.weight(1f),
-                    colors = OutlinedTextFieldDefaults.colors(focusedTextColor = Color.White, unfocusedTextColor = Color.LightGray)
+    flatStyles.forEachIndexed { index, style ->
+        Card(
+            colors = CardDefaults.cardColors(containerColor = Color(0xFF1C1C2C)),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(bottom = 16.dp)
+                .border(1.dp, Color(0x10FFFFFF), RoundedCornerShape(16.dp))
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Text(
+                    text = "Layout Style for suffix *${style.roomSuffix}",
+                    color = Color(0xFF818CF8),
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 14.sp
                 )
-                OutlinedTextField(
-                    value = suffix01Bathrooms,
-                    onValueChange = { onStyle01Change(suffix01Bedrooms, it, suffix01Attached, suffix01Open, suffix01Balcony, suffix01Kitchen) },
-                    label = { Text("Baths", fontSize = 10.sp) },
-                    modifier = Modifier.weight(1f),
-                    colors = OutlinedTextFieldDefaults.colors(focusedTextColor = Color.White, unfocusedTextColor = Color.LightGray)
-                )
-                OutlinedTextField(
-                    value = suffix01Attached,
-                    onValueChange = { onStyle01Change(suffix01Bedrooms, suffix01Bathrooms, it, suffix01Open, suffix01Balcony, suffix01Kitchen) },
-                    label = { Text("Attach", fontSize = 10.sp) },
-                    modifier = Modifier.weight(1f),
-                    colors = OutlinedTextFieldDefaults.colors(focusedTextColor = Color.White, unfocusedTextColor = Color.LightGray)
-                )
-            }
-            Spacer(modifier = Modifier.height(4.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedTextField(
-                    value = suffix01Open,
-                    onValueChange = { onStyle01Change(suffix01Bedrooms, suffix01Bathrooms, suffix01Attached, it, suffix01Balcony, suffix01Kitchen) },
-                    label = { Text("Open B.", fontSize = 10.sp) },
-                    modifier = Modifier.weight(1f),
-                    colors = OutlinedTextFieldDefaults.colors(focusedTextColor = Color.White, unfocusedTextColor = Color.LightGray)
-                )
-                OutlinedTextField(
-                    value = suffix01Balcony,
-                    onValueChange = { onStyle01Change(suffix01Bedrooms, suffix01Bathrooms, suffix01Attached, suffix01Open, it, suffix01Kitchen) },
-                    label = { Text("Balcony", fontSize = 10.sp) },
-                    modifier = Modifier.weight(1f),
-                    colors = OutlinedTextFieldDefaults.colors(focusedTextColor = Color.White, unfocusedTextColor = Color.LightGray)
-                )
-                OutlinedTextField(
-                    value = suffix01Kitchen,
-                    onValueChange = { onStyle01Change(suffix01Bedrooms, suffix01Bathrooms, suffix01Attached, suffix01Open, suffix01Balcony, it) },
-                    label = { Text("Kitchen", fontSize = 10.sp) },
-                    modifier = Modifier.weight(1f),
-                    colors = OutlinedTextFieldDefaults.colors(focusedTextColor = Color.White, unfocusedTextColor = Color.LightGray)
-                )
-            }
-        }
-    }
+                Spacer(modifier = Modifier.height(12.dp))
 
-    // --- SECTION FOR *02 SUFFIX ---
-    Card(
-        colors = CardDefaults.cardColors(containerColor = Color(0xFF2A2A3D)),
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        Column(modifier = Modifier.padding(12.dp)) {
-            Text("Style for suffix *02 [e.g. 102, 202, 302]", color = Color(0xFF60A5FA), fontWeight = FontWeight.Bold, fontSize = 13.sp)
-            Spacer(modifier = Modifier.height(8.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedTextField(
-                    value = suffix02Bedrooms,
-                    onValueChange = { onStyle02Change(it, suffix02Bathrooms, suffix02Attached, suffix02Open, suffix02Balcony, suffix02Kitchen) },
-                    label = { Text("Beds", fontSize = 10.sp) },
-                    modifier = Modifier.weight(1f),
-                    colors = OutlinedTextFieldDefaults.colors(focusedTextColor = Color.White, unfocusedTextColor = Color.LightGray)
-                )
-                OutlinedTextField(
-                    value = suffix02Bathrooms,
-                    onValueChange = { onStyle02Change(suffix02Bedrooms, it, suffix02Attached, suffix02Open, suffix02Balcony, suffix02Kitchen) },
-                    label = { Text("Baths", fontSize = 10.sp) },
-                    modifier = Modifier.weight(1f),
-                    colors = OutlinedTextFieldDefaults.colors(focusedTextColor = Color.White, unfocusedTextColor = Color.LightGray)
-                )
-                OutlinedTextField(
-                    value = suffix02Attached,
-                    onValueChange = { onStyle02Change(suffix02Bedrooms, suffix02Bathrooms, it, suffix02Open, suffix02Balcony, suffix02Kitchen) },
-                    label = { Text("Attach", fontSize = 10.sp) },
-                    modifier = Modifier.weight(1f),
-                    colors = OutlinedTextFieldDefaults.colors(focusedTextColor = Color.White, unfocusedTextColor = Color.LightGray)
-                )
-            }
-            Spacer(modifier = Modifier.height(4.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedTextField(
-                    value = suffix02Open,
-                    onValueChange = { onStyle02Change(suffix02Bedrooms, suffix02Bathrooms, suffix02Attached, it, suffix02Balcony, suffix02Kitchen) },
-                    label = { Text("Open B.", fontSize = 10.sp) },
-                    modifier = Modifier.weight(1f),
-                    colors = OutlinedTextFieldDefaults.colors(focusedTextColor = Color.White, unfocusedTextColor = Color.LightGray)
-                )
-                OutlinedTextField(
-                    value = suffix02Balcony,
-                    onValueChange = { onStyle02Change(suffix02Bedrooms, suffix02Bathrooms, suffix02Attached, suffix02Open, it, suffix02Kitchen) },
-                    label = { Text("Balcony", fontSize = 10.sp) },
-                    modifier = Modifier.weight(1f),
-                    colors = OutlinedTextFieldDefaults.colors(focusedTextColor = Color.White, unfocusedTextColor = Color.LightGray)
-                )
-                OutlinedTextField(
-                    value = suffix02Kitchen,
-                    onValueChange = { onStyle02Change(suffix02Bedrooms, suffix02Bathrooms, suffix02Attached, suffix02Open, suffix02Balcony, it) },
-                    label = { Text("Kitchen", fontSize = 10.sp) },
-                    modifier = Modifier.weight(1f),
-                    colors = OutlinedTextFieldDefaults.colors(focusedTextColor = Color.White, unfocusedTextColor = Color.LightGray)
-                )
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    var bedStr by remember(style) { mutableStateOf(style.bedrooms.toString()) }
+                    var bathStr by remember(style) { mutableStateOf(style.bathrooms.toString()) }
+                    var attachedStr by remember(style) { mutableStateOf(style.attachedBaths.toString()) }
+
+                    OutlinedTextField(
+                        value = bedStr,
+                        onValueChange = {
+                            bedStr = it
+                            val value = it.toIntOrNull() ?: 0
+                            val updated = style.copy(bedrooms = value)
+                            val newList = flatStyles.toMutableList()
+                            newList[index] = updated
+                            onStylesChange(newList)
+                        },
+                        label = { Text("Bedrooms", fontSize = 10.sp) },
+                        modifier = Modifier.weight(1f),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        colors = OutlinedTextFieldDefaults.colors(focusedTextColor = Color.White, unfocusedTextColor = Color.LightGray)
+                    )
+
+                    OutlinedTextField(
+                        value = bathStr,
+                        onValueChange = {
+                            bathStr = it
+                            val value = it.toIntOrNull() ?: 0
+                            val updated = style.copy(bathrooms = value)
+                            val newList = flatStyles.toMutableList()
+                            newList[index] = updated
+                            onStylesChange(newList)
+                        },
+                        label = { Text("Bathrooms", fontSize = 10.sp) },
+                        modifier = Modifier.weight(1f),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        colors = OutlinedTextFieldDefaults.colors(focusedTextColor = Color.White, unfocusedTextColor = Color.LightGray)
+                    )
+
+                    OutlinedTextField(
+                        value = attachedStr,
+                        onValueChange = {
+                            attachedStr = it
+                            val value = it.toIntOrNull() ?: 0
+                            val updated = style.copy(attachedBaths = value)
+                            val newList = flatStyles.toMutableList()
+                            newList[index] = updated
+                            onStylesChange(newList)
+                        },
+                        label = { Text("Attached Baths", fontSize = 10.sp) },
+                        modifier = Modifier.weight(1f),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        colors = OutlinedTextFieldDefaults.colors(focusedTextColor = Color.White, unfocusedTextColor = Color.LightGray)
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    var openStr by remember(style) { mutableStateOf(style.openBaths.toString()) }
+                    var balconyStr by remember(style) { mutableStateOf(style.balconies.toString()) }
+                    var kitchenStr by remember(style) { mutableStateOf(style.kitchens.toString()) }
+
+                    OutlinedTextField(
+                        value = openStr,
+                        onValueChange = {
+                            openStr = it
+                            val value = it.toIntOrNull() ?: 0
+                            val updated = style.copy(openBaths = value)
+                            val newList = flatStyles.toMutableList()
+                            newList[index] = updated
+                            onStylesChange(newList)
+                        },
+                        label = { Text("Open Baths", fontSize = 10.sp) },
+                        modifier = Modifier.weight(1f),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        colors = OutlinedTextFieldDefaults.colors(focusedTextColor = Color.White, unfocusedTextColor = Color.LightGray)
+                    )
+
+                    OutlinedTextField(
+                        value = balconyStr,
+                        onValueChange = {
+                            balconyStr = it
+                            val value = it.toIntOrNull() ?: 0
+                            val updated = style.copy(balconies = value)
+                            val newList = flatStyles.toMutableList()
+                            newList[index] = updated
+                            onStylesChange(newList)
+                        },
+                        label = { Text("Balconies", fontSize = 10.sp) },
+                        modifier = Modifier.weight(1f),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        colors = OutlinedTextFieldDefaults.colors(focusedTextColor = Color.White, unfocusedTextColor = Color.LightGray)
+                    )
+
+                    OutlinedTextField(
+                        value = kitchenStr,
+                        onValueChange = {
+                            kitchenStr = it
+                            val value = it.toIntOrNull() ?: 0
+                            val updated = style.copy(kitchens = value)
+                            val newList = flatStyles.toMutableList()
+                            newList[index] = updated
+                            onStylesChange(newList)
+                        },
+                        label = { Text("Kitchens", fontSize = 10.sp) },
+                        modifier = Modifier.weight(1f),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        colors = OutlinedTextFieldDefaults.colors(focusedTextColor = Color.White, unfocusedTextColor = Color.LightGray)
+                    )
+                }
             }
         }
     }
@@ -824,10 +809,11 @@ fun StepRulesList(
     onRulesChange: (Set<String>) -> Unit
 ) {
     Text(
-        text = "Select rules for the building:",
+        text = "Select rules for this property:",
         color = Color.LightGray,
         fontSize = 15.sp,
-        modifier = Modifier.padding(bottom = 12.dp)
+        modifier = Modifier.padding(bottom = 12.dp),
+        fontWeight = FontWeight.Medium
     )
 
     availableRules.forEach { rule ->
@@ -836,7 +822,7 @@ fun StepRulesList(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(vertical = 4.dp)
-                .background(Color(0xFF232338), RoundedCornerShape(8.dp))
+                .background(Color(0xFF1C1C2C), RoundedCornerShape(12.dp))
                 .clickable {
                     val newSet = selectedRules.toMutableSet()
                     if (isChecked) newSet.remove(rule) else newSet.add(rule)
@@ -861,15 +847,13 @@ fun StepRulesList(
 }
 
 @Composable
-fun StepRentConfig(
+fun StepRentConfigDynamic(
     rentType: String,
     onRentTypeChange: (String) -> Unit,
     universalRentStr: String,
     onUniversalRentChange: (String) -> Unit,
-    rent01Str: String,
-    onRent01Change: (String) -> Unit,
-    rent02Str: String,
-    onRent02Change: (String) -> Unit
+    customRentsMap: Map<String, String>,
+    onCustomRentsMapChange: (Map<String, String>) -> Unit
 ) {
     Text(
         text = "Rent Pricing Structure",
@@ -878,34 +862,36 @@ fun StepRentConfig(
         fontSize = 16.sp
     )
     Text(
-        text = "Choose whether all rooms have the same rent or if rent varies by room suffix:",
+        text = "Choose whether all rooms have a universal rent rate or vary dynamically by room suffix:",
         color = Color.LightGray,
         fontSize = 12.sp,
-        modifier = Modifier.padding(bottom = 12.dp)
+        modifier = Modifier.padding(bottom = 16.dp)
     )
 
     Row(
         modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         Button(
             onClick = { onRentTypeChange("Universal") },
             colors = ButtonDefaults.buttonColors(
-                containerColor = if (rentType == "Universal") Color(0xFF6366F1) else Color(0xFF2A2A3D)
+                containerColor = if (rentType == "Universal") Color(0xFF6366F1) else Color(0xFF1E1E2F)
             ),
+            shape = RoundedCornerShape(12.dp),
             modifier = Modifier.weight(1f)
         ) {
-            Text("Universal Rent", fontSize = 11.sp)
+            Text("Universal Rent", fontSize = 12.sp, fontWeight = FontWeight.Bold)
         }
 
         Button(
             onClick = { onRentTypeChange("Set of Flats") },
             colors = ButtonDefaults.buttonColors(
-                containerColor = if (rentType == "Set of Flats") Color(0xFF6366F1) else Color(0xFF2A2A3D)
+                containerColor = if (rentType == "Set of Flats") Color(0xFF6366F1) else Color(0xFF1E1E2F)
             ),
+            shape = RoundedCornerShape(12.dp),
             modifier = Modifier.weight(1f)
         ) {
-            Text("By Suffix (*01/*02)", fontSize = 11.sp)
+            Text("By Room Suffix", fontSize = 12.sp, fontWeight = FontWeight.Bold)
         }
     }
 
@@ -919,24 +905,22 @@ fun StepRentConfig(
             modifier = Modifier.fillMaxWidth()
         )
     } else {
-        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            OutlinedTextField(
-                value = rent01Str,
-                onValueChange = onRent01Change,
-                label = { Text("Rent for *01 Flats (BDT/month)") },
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                colors = OutlinedTextFieldDefaults.colors(focusedTextColor = Color.White, unfocusedTextColor = Color.LightGray),
-                modifier = Modifier.fillMaxWidth()
-            )
-
-            OutlinedTextField(
-                value = rent02Str,
-                onValueChange = onRent02Change,
-                label = { Text("Rent for *02 Flats (BDT/month)") },
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                colors = OutlinedTextFieldDefaults.colors(focusedTextColor = Color.White, unfocusedTextColor = Color.LightGray),
-                modifier = Modifier.fillMaxWidth()
-            )
+        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            customRentsMap.keys.sorted().forEach { suffix ->
+                val currentVal = customRentsMap[suffix] ?: ""
+                OutlinedTextField(
+                    value = currentVal,
+                    onValueChange = { newVal ->
+                        val newMap = customRentsMap.toMutableMap()
+                        newMap[suffix] = newVal
+                        onCustomRentsMapChange(newMap)
+                    },
+                    label = { Text("Rent for *${suffix} Flats (BDT/month)") },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    colors = OutlinedTextFieldDefaults.colors(focusedTextColor = Color.White, unfocusedTextColor = Color.LightGray),
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
         }
     }
 }
