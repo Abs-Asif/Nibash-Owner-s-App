@@ -143,4 +143,76 @@ class NibashOwnerTest {
         assertEquals(1, style102.bathrooms)
         assertEquals(0, style102.attachedBaths)
     }
+
+    @Test
+    fun testCustomRoomRent() {
+        val building = Building(
+            name = "Custom Room Rent Tower",
+            floorsCount = 2,
+            systemType = "Flats",
+            roomsPerFloor = 2,
+            numberingSystem = "Numeric (101, 102)",
+            rentType = "Universal",
+            universalRent = 10000.0,
+            customRoomRents = mapOf("101" to 14500.0)
+        )
+
+        // Custom room rent should override universal rent
+        assertEquals(14500.0, building.getRentForRoom("101"), 0.0)
+        // Room 102 should fall back to universal rent
+        assertEquals(10000.0, building.getRentForRoom("102"), 0.0)
+    }
+
+    @Test
+    fun testExcludedRoomRoomsGeneration() {
+        val building = Building(
+            name = "Excluded Room Tower",
+            floorsCount = 2,
+            systemType = "Flats",
+            roomsPerFloor = 2,
+            numberingSystem = "Numeric (101, 102)",
+            rentType = "Universal",
+            universalRent = 10000.0,
+            excludedRooms = listOf("102")
+        )
+
+        val rooms = building.generateRoomNumbers(includeExcluded = false)
+        assertTrue("101" in rooms)
+        assertTrue("102" !in rooms)
+        assertEquals(3, rooms.size)
+
+        val physicalRooms = building.generateRoomNumbers(includeExcluded = true)
+        assertTrue("102" in physicalRooms)
+        assertEquals(4, physicalRooms.size)
+    }
+
+    @Test
+    fun testSerializationAndDeserialization() {
+        val building = Building(
+            id = "test-building-id",
+            name = "Serialized Tower",
+            floorsCount = 3,
+            systemType = "Flats",
+            roomsPerFloor = 2,
+            numberingSystem = "Numeric (101, 102)",
+            rentType = "Universal",
+            universalRent = 15000.0,
+            customRoomRents = mapOf("101" to 16000.0),
+            excludedRooms = listOf("102")
+        )
+
+        val json = building.toJson()
+        val restored = Building.fromJson(json)
+
+        assertEquals(building.id, restored.id)
+        assertEquals(building.name, restored.name)
+        assertEquals(building.floorsCount, restored.floorsCount)
+        assertEquals(building.systemType, restored.systemType)
+        assertEquals(building.roomsPerFloor, restored.roomsPerFloor)
+        assertEquals(building.numberingSystem, restored.numberingSystem)
+        assertEquals(building.rentType, restored.rentType)
+        assertEquals(building.universalRent, restored.universalRent, 0.0)
+        assertEquals(building.customRoomRents["101"], restored.customRoomRents["101"])
+        assertEquals(building.excludedRooms, restored.excludedRooms)
+    }
 }
