@@ -158,6 +158,62 @@ fun FormScreen(
                 .fillMaxWidth()
                 .weight(1.2f)
         ) {
+            val isStepValid = remember(
+                currentStep, buildingName, floorsCountStr, systemType, roomsPerFloorStr,
+                style01Bedrooms, style01Bathrooms, style01Attached, style01Open, style01Balcony, style01Kitchen,
+                style02Bedrooms, style02Bathrooms, style02Attached, style02Open, style02Balcony, style02Kitchen,
+                rentType, universalRentStr, rent01Str, rent02Str
+            ) {
+                when (currentStep) {
+                    1 -> buildingName.isNotBlank()
+                    2 -> {
+                        val count = floorsCountStr.toIntOrNull()
+                        count != null && count in 1..50
+                    }
+                    3 -> systemType.isNotBlank()
+                    4 -> {
+                        val count = roomsPerFloorStr.toIntOrNull()
+                        count != null && count in 1..20
+                    }
+                    5 -> true
+                    6 -> numberingSystem.isNotBlank()
+                    7 -> {
+                        val s1Bed = style01Bedrooms.toIntOrNull()
+                        val s1Bath = style01Bathrooms.toIntOrNull()
+                        val s1Att = style01Attached.toIntOrNull()
+                        val s1Opn = style01Open.toIntOrNull()
+                        val s1Bal = style01Balcony.toIntOrNull()
+                        val s1Kit = style01Kitchen.toIntOrNull()
+
+                        val s2Bed = style02Bedrooms.toIntOrNull()
+                        val s2Bath = style02Bathrooms.toIntOrNull()
+                        val s2Att = style02Attached.toIntOrNull()
+                        val s2Opn = style02Open.toIntOrNull()
+                        val s2Bal = style02Balcony.toIntOrNull()
+                        val s2Kit = style02Kitchen.toIntOrNull()
+
+                        s1Bed != null && s1Bed >= 0 && s1Bath != null && s1Bath >= 0 &&
+                        s1Att != null && s1Att >= 0 && s1Opn != null && s1Opn >= 0 &&
+                        s1Bal != null && s1Bal >= 0 && s1Kit != null && s1Kit >= 0 &&
+                        s2Bed != null && s2Bed >= 0 && s2Bath != null && s2Bath >= 0 &&
+                        s2Att != null && s2Att >= 0 && s2Opn != null && s2Opn >= 0 &&
+                        s2Bal != null && s2Bal >= 0 && s2Kit != null && s2Kit >= 0
+                    }
+                    8 -> true
+                    9 -> {
+                        if (rentType == "Universal") {
+                            val rent = universalRentStr.toDoubleOrNull()
+                            rent != null && rent >= 0.0
+                        } else {
+                            val r1 = rent01Str.toDoubleOrNull()
+                            val r2 = rent02Str.toDoubleOrNull()
+                            r1 != null && r1 >= 0.0 && r2 != null && r2 >= 0.0
+                        }
+                    }
+                    else -> true
+                }
+            }
+
             Column(
                 modifier = Modifier
                     .fillMaxSize()
@@ -205,9 +261,11 @@ fun FormScreen(
 
                     if (currentStep < 9) {
                         FilledIconButton(
+                            enabled = isStepValid,
                             onClick = { currentStep++ },
                             colors = IconButtonDefaults.filledIconButtonColors(
-                                containerColor = Color(0xFF6366F1)
+                                containerColor = Color(0xFF6366F1),
+                                disabledContainerColor = Color(0xFF2D2D44)
                             )
                         ) {
                             Icon(
@@ -219,6 +277,7 @@ fun FormScreen(
                     } else {
                         // Submit Button
                         FilledIconButton(
+                            enabled = isStepValid,
                             onClick = {
                                 // Assemble the building
                                 val styles = listOf(
@@ -263,7 +322,8 @@ fun FormScreen(
                                 onBuildingCreated(newBuilding)
                             },
                             colors = IconButtonDefaults.filledIconButtonColors(
-                                containerColor = Color(0xFF10B981)
+                                containerColor = Color(0xFF10B981),
+                                disabledContainerColor = Color(0xFF2D2D44)
                             )
                         ) {
                             Icon(
