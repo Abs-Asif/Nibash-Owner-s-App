@@ -52,7 +52,7 @@ jobs:
       - name: Prepare APK for Release
         run: |
           mkdir -p release-artifacts
-          cp app/build/outputs/apk/release/app-release-unsigned.apk release-artifacts/NibashOwner-Release-${{ env.VERSION }}.apk
+          cp app/build/outputs/apk/release/app-release.apk release-artifacts/NibashOwner-Release-${{ env.VERSION }}.apk
 
       - name: Create GitHub Release
         env:
