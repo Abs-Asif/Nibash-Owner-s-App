@@ -39,8 +39,37 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 fun NibashApp() {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val sharedPrefs = remember { context.getSharedPreferences("nibash_prefs", android.content.Context.MODE_PRIVATE) }
+
     // Shared reactive state for list of buildings
-    var buildings by remember { mutableStateOf(DummyDataProvider.getDummyBuildings()) }
+    var buildings by remember {
+        mutableStateOf(
+            run {
+                val savedJson = sharedPrefs.getString("buildings_data", null)
+                if (savedJson != null) {
+                    try {
+                        val arr = org.json.JSONArray(savedJson)
+                        val list = mutableListOf<Building>()
+                        for (i in 0 until arr.length()) {
+                            list.add(Building.fromJson(arr.getJSONObject(i)))
+                        }
+                        list
+                    } catch (e: Exception) {
+                        emptyList<Building>()
+                    }
+                } else {
+                    emptyList<Building>()
+                }
+            }
+        )
+    }
+
+    LaunchedEffect(buildings) {
+        val arr = org.json.JSONArray()
+        buildings.forEach { arr.put(it.toJson()) }
+        sharedPrefs.edit().putString("buildings_data", arr.toString()).apply()
+    }
 
     // Lightweight navigation state stack
     // Home is always at the base.

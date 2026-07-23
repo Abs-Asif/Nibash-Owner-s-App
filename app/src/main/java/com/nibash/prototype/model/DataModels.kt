@@ -1,11 +1,29 @@
 package com.nibash.prototype.model
 
+import org.json.JSONArray
+import org.json.JSONObject
 import java.util.UUID
 
 data class FloorAddition(
     val floorNumber: Int, // 0 for Ground, 1 for 1st, etc.
     val type: String // "Parking Only", "Single Flat", "Regular"
-)
+) {
+    fun toJson(): JSONObject {
+        val obj = JSONObject()
+        obj.put("floorNumber", floorNumber)
+        obj.put("type", type)
+        return obj
+    }
+
+    companion object {
+        fun fromJson(obj: JSONObject): FloorAddition {
+            return FloorAddition(
+                floorNumber = obj.getInt("floorNumber"),
+                type = obj.getString("type")
+            )
+        }
+    }
+}
 
 data class FlatStyle(
     val roomSuffix: String, // e.g. "01" (to match rooms ending in 01 or 1)
@@ -15,7 +33,33 @@ data class FlatStyle(
     val openBaths: Int,
     val balconies: Int,
     val kitchens: Int
-)
+) {
+    fun toJson(): JSONObject {
+        val obj = JSONObject()
+        obj.put("roomSuffix", roomSuffix)
+        obj.put("bedrooms", bedrooms)
+        obj.put("bathrooms", bathrooms)
+        obj.put("attachedBaths", attachedBaths)
+        obj.put("openBaths", openBaths)
+        obj.put("balconies", balconies)
+        obj.put("kitchens", kitchens)
+        return obj
+    }
+
+    companion object {
+        fun fromJson(obj: JSONObject): FlatStyle {
+            return FlatStyle(
+                roomSuffix = obj.getString("roomSuffix"),
+                bedrooms = obj.optInt("bedrooms", 2),
+                bathrooms = obj.optInt("bathrooms", 1),
+                attachedBaths = obj.optInt("attachedBaths", 0),
+                openBaths = obj.optInt("openBaths", 1),
+                balconies = obj.optInt("balconies", 1),
+                kitchens = obj.optInt("kitchens", 1)
+            )
+        }
+    }
+}
 
 data class Tenant(
     val id: String = UUID.randomUUID().toString(),
@@ -26,7 +70,35 @@ data class Tenant(
     val familyMembers: Int,
     val startDate: String = "2024-01",
     val isActive: Boolean = true
-)
+) {
+    fun toJson(): JSONObject {
+        val obj = JSONObject()
+        obj.put("id", id)
+        obj.put("roomId", roomId)
+        obj.put("name", name)
+        obj.put("occupation", occupation)
+        obj.put("phone", phone)
+        obj.put("familyMembers", familyMembers)
+        obj.put("startDate", startDate)
+        obj.put("isActive", isActive)
+        return obj
+    }
+
+    companion object {
+        fun fromJson(obj: JSONObject): Tenant {
+            return Tenant(
+                id = obj.optString("id", UUID.randomUUID().toString()),
+                roomId = obj.getString("roomId"),
+                name = obj.getString("name"),
+                occupation = obj.optString("occupation", ""),
+                phone = obj.optString("phone", ""),
+                familyMembers = obj.optInt("familyMembers", 1),
+                startDate = obj.optString("startDate", "2024-01"),
+                isActive = obj.optBoolean("isActive", true)
+            )
+        }
+    }
+}
 
 data class Payment(
     val id: String = UUID.randomUUID().toString(),
@@ -38,7 +110,37 @@ data class Payment(
     val advancePaid: Double,
     val isPaid: Boolean,
     val paidDate: String = ""
-)
+) {
+    fun toJson(): JSONObject {
+        val obj = JSONObject()
+        obj.put("id", id)
+        obj.put("tenantId", tenantId)
+        obj.put("roomId", roomId)
+        obj.put("month", month)
+        obj.put("amountPaid", amountPaid)
+        obj.put("amountDue", amountDue)
+        obj.put("advancePaid", advancePaid)
+        obj.put("isPaid", isPaid)
+        obj.put("paidDate", paidDate)
+        return obj
+    }
+
+    companion object {
+        fun fromJson(obj: JSONObject): Payment {
+            return Payment(
+                id = obj.optString("id", UUID.randomUUID().toString()),
+                tenantId = obj.getString("tenantId"),
+                roomId = obj.getString("roomId"),
+                month = obj.getString("month"),
+                amountPaid = obj.optDouble("amountPaid", 0.0),
+                amountDue = obj.optDouble("amountDue", 0.0),
+                advancePaid = obj.optDouble("advancePaid", 0.0),
+                isPaid = obj.optBoolean("isPaid", false),
+                paidDate = obj.optString("paidDate", "")
+            )
+        }
+    }
+}
 
 data class Building(
     val id: String = UUID.randomUUID().toString(),
@@ -53,11 +155,13 @@ data class Building(
     val rentType: String, // "Universal" or "Set of Flats"
     val universalRent: Double = 0.0,
     val customRents: Map<String, Double> = emptyMap(), // suffix to rent amount (e.g. "01" -> 15000.0)
+    val customRoomRents: Map<String, Double> = emptyMap(), // specific room to rent (e.g. "101" -> 16000.0)
+    val excludedRooms: List<String> = emptyList(), // rooms excluded from lists, not fit for rent, not calculated anywhere else
     val tenants: List<Tenant> = emptyList(),
     val payments: List<Payment> = emptyList()
 ) {
     // Generate all room numbers based on floors, systemType, additions, and numberingSystem
-    fun generateRoomNumbers(): List<String> {
+    fun generateRoomNumbers(includeExcluded: Boolean = false): List<String> {
         val rooms = mutableListOf<String>()
         for (f in 0 until floorsCount) {
             val addition = floorAdditions.find { it.floorNumber == f }
@@ -83,7 +187,7 @@ data class Building(
                 rooms.add(roomNum)
             }
         }
-        return rooms
+        return if (includeExcluded) rooms else rooms.filter { it !in excludedRooms }
     }
 
     // Get style of a room
@@ -108,6 +212,9 @@ data class Building(
 
     // Get Rent for room
     fun getRentForRoom(roomNum: String): Double {
+        // Check specific room custom rent first
+        customRoomRents[roomNum]?.let { return it }
+
         if (rentType == "Universal") {
             return universalRent
         }
@@ -119,78 +226,145 @@ data class Building(
         // Fallback default
         return universalRent.takeIf { it > 0 } ?: 10000.0
     }
+
+    fun toJson(): JSONObject {
+        val obj = JSONObject()
+        obj.put("id", id)
+        obj.put("name", name)
+        obj.put("floorsCount", floorsCount)
+        obj.put("systemType", systemType)
+        obj.put("roomsPerFloor", roomsPerFloor)
+
+        val additionsArr = JSONArray()
+        floorAdditions.forEach { additionsArr.put(it.toJson()) }
+        obj.put("floorAdditions", additionsArr)
+
+        obj.put("numberingSystem", numberingSystem)
+
+        val stylesArr = JSONArray()
+        flatStyles.forEach { stylesArr.put(it.toJson()) }
+        obj.put("flatStyles", stylesArr)
+
+        val rulesArr = JSONArray()
+        rules.forEach { rulesArr.put(it) }
+        obj.put("rules", rulesArr)
+
+        obj.put("rentType", rentType)
+        obj.put("universalRent", universalRent)
+
+        val customRentsObj = JSONObject()
+        customRents.forEach { (k, v) -> customRentsObj.put(k, v) }
+        obj.put("customRents", customRentsObj)
+
+        val customRoomRentsObj = JSONObject()
+        customRoomRents.forEach { (k, v) -> customRoomRentsObj.put(k, v) }
+        obj.put("customRoomRents", customRoomRentsObj)
+
+        val excludedRoomsArr = JSONArray()
+        excludedRooms.forEach { excludedRoomsArr.put(it) }
+        obj.put("excludedRooms", excludedRoomsArr)
+
+        val tenantsArr = JSONArray()
+        tenants.forEach { tenantsArr.put(it.toJson()) }
+        obj.put("tenants", tenantsArr)
+
+        val paymentsArr = JSONArray()
+        payments.forEach { paymentsArr.put(it.toJson()) }
+        obj.put("payments", paymentsArr)
+
+        return obj
+    }
+
+    companion object {
+        fun fromJson(obj: JSONObject): Building {
+            val additionsList = mutableListOf<FloorAddition>()
+            val additionsArr = obj.optJSONArray("floorAdditions")
+            if (additionsArr != null) {
+                for (i in 0 until additionsArr.length()) {
+                    additionsList.add(FloorAddition.fromJson(additionsArr.getJSONObject(i)))
+                }
+            }
+
+            val stylesList = mutableListOf<FlatStyle>()
+            val stylesArr = obj.optJSONArray("flatStyles")
+            if (stylesArr != null) {
+                for (i in 0 until stylesArr.length()) {
+                    stylesList.add(FlatStyle.fromJson(stylesArr.getJSONObject(i)))
+                }
+            }
+
+            val rulesList = mutableListOf<String>()
+            val rulesArr = obj.optJSONArray("rules")
+            if (rulesArr != null) {
+                for (i in 0 until rulesArr.length()) {
+                    rulesList.add(rulesArr.getString(i))
+                }
+            }
+
+            val customRentsMap = mutableMapOf<String, Double>()
+            val customRentsObj = obj.optJSONObject("customRents")
+            if (customRentsObj != null) {
+                customRentsObj.keys().forEach { key ->
+                    customRentsMap[key] = customRentsObj.getDouble(key)
+                }
+            }
+
+            val customRoomRentsMap = mutableMapOf<String, Double>()
+            val customRoomRentsObj = obj.optJSONObject("customRoomRents")
+            if (customRoomRentsObj != null) {
+                customRoomRentsObj.keys().forEach { key ->
+                    customRoomRentsMap[key] = customRoomRentsObj.getDouble(key)
+                }
+            }
+
+            val excludedRoomsList = mutableListOf<String>()
+            val excludedRoomsArr = obj.optJSONArray("excludedRooms")
+            if (excludedRoomsArr != null) {
+                for (i in 0 until excludedRoomsArr.length()) {
+                    excludedRoomsList.add(excludedRoomsArr.getString(i))
+                }
+            }
+
+            val tenantsList = mutableListOf<Tenant>()
+            val tenantsArr = obj.optJSONArray("tenants")
+            if (tenantsArr != null) {
+                for (i in 0 until tenantsArr.length()) {
+                    tenantsList.add(Tenant.fromJson(tenantsArr.getJSONObject(i)))
+                }
+            }
+
+            val paymentsList = mutableListOf<Payment>()
+            val paymentsArr = obj.optJSONArray("payments")
+            if (paymentsArr != null) {
+                for (i in 0 until paymentsArr.length()) {
+                    paymentsList.add(Payment.fromJson(paymentsArr.getJSONObject(i)))
+                }
+            }
+
+            return Building(
+                id = obj.optString("id", UUID.randomUUID().toString()),
+                name = obj.getString("name"),
+                floorsCount = obj.getInt("floorsCount"),
+                systemType = obj.getString("systemType"),
+                roomsPerFloor = obj.getInt("roomsPerFloor"),
+                floorAdditions = additionsList,
+                numberingSystem = obj.getString("numberingSystem"),
+                flatStyles = stylesList,
+                rules = rulesList,
+                rentType = obj.getString("rentType"),
+                universalRent = obj.optDouble("universalRent", 0.0),
+                customRents = customRentsMap,
+                customRoomRents = customRoomRentsMap,
+                excludedRooms = excludedRoomsList,
+                tenants = tenantsList,
+                payments = paymentsList
+            )
+        }
+    }
 }
 
 object DummyDataProvider {
     fun getDummyBuildings(): List<Building> {
-        // Generate building 1: Nibash Tower
-        val flatStyles1 = listOf(
-            FlatStyle("01", 3, 2, 1, 1, 2, 1),
-            FlatStyle("02", 2, 1, 0, 1, 1, 1)
-        )
-        val customRents1 = mapOf(
-            "01" to 18000.0,
-            "02" to 12000.0
-        )
-        val floorAdditions1 = listOf(
-            FloorAddition(0, "Parking Only"),
-            FloorAddition(4, "Single Flat") // penthouse
-        )
-        val rules1 = listOf(
-            "No pets allowed",
-            "No rooftop access",
-            "Gate closes at 9:00 PM",
-            "Parking fee for vehicles apply"
-        )
-
-        val tenant1 = Tenant(roomId = "101", name = "Rahat Kabir", occupation = "Software Engineer", phone = "+8801712345678", familyMembers = 3)
-        val tenant2 = Tenant(roomId = "102", name = "Sultana Yasmin", occupation = "Banker", phone = "+8801811223344", familyMembers = 2)
-        val tenant3 = Tenant(roomId = "201", name = "Monirul Islam", occupation = "Business Owner", phone = "+8801511998877", familyMembers = 4)
-
-        val payments1 = listOf(
-            Payment(tenantId = tenant1.id, roomId = "101", month = "July 2024", amountPaid = 18000.0, amountDue = 0.0, advancePaid = 0.0, isPaid = true, paidDate = "2024-07-02"),
-            Payment(tenantId = tenant1.id, roomId = "101", month = "June 2024", amountPaid = 18000.0, amountDue = 0.0, advancePaid = 0.0, isPaid = true, paidDate = "2024-06-03"),
-            Payment(tenantId = tenant2.id, roomId = "102", month = "July 2024", amountPaid = 0.0, amountDue = 12000.0, advancePaid = 0.0, isPaid = false),
-            Payment(tenantId = tenant2.id, roomId = "102", month = "June 2024", amountPaid = 12000.0, amountDue = 0.0, advancePaid = 2000.0, isPaid = true, paidDate = "2024-06-05"),
-            Payment(tenantId = tenant3.id, roomId = "201", month = "July 2024", amountPaid = 18000.0, amountDue = 0.0, advancePaid = 0.0, isPaid = true, paidDate = "2024-07-01")
-        )
-
-        val building1 = Building(
-            id = "b1",
-            name = "Nibash Tower",
-            floorsCount = 5,
-            systemType = "Flats",
-            roomsPerFloor = 2,
-            floorAdditions = floorAdditions1,
-            numberingSystem = "Numeric (101, 102)",
-            flatStyles = flatStyles1,
-            rules = rules1,
-            rentType = "Set of Flats",
-            customRents = customRents1,
-            universalRent = 15000.0,
-            tenants = listOf(tenant1, tenant2, tenant3),
-            payments = payments1
-        )
-
-        // Building 2: Dream Villa
-        val tenant4 = Tenant(roomId = "A01", name = "Sajib Hasan", occupation = "Doctor", phone = "+8801911224455", familyMembers = 3)
-        val building2 = Building(
-            id = "b2",
-            name = "Dream Villa",
-            floorsCount = 3,
-            systemType = "Individual Rooms",
-            roomsPerFloor = 3,
-            floorAdditions = emptyList(), // No parking floor, rooms on ground floor
-            numberingSystem = "Alphabetic (A01, A02)",
-            rules = listOf("No pets allowed", "Gate closes at 10:00 PM"),
-            rentType = "Universal",
-            universalRent = 8000.0,
-            tenants = listOf(tenant4),
-            payments = listOf(
-                Payment(tenantId = tenant4.id, roomId = "A01", month = "July 2024", amountPaid = 8000.0, amountDue = 0.0, advancePaid = 1000.0, isPaid = true, paidDate = "2024-07-05")
-            )
-        )
-
-        return listOf(building1, building2)
+        return emptyList()
     }
 }
